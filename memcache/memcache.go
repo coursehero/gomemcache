@@ -12,6 +12,8 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+Modifications Copyright (C) 2021 Course Hero
 */
 
 // Package memcache provides a client for the memcached cache server.
@@ -673,6 +675,40 @@ func (c *Client) DeleteAll() error {
 // of them is down.
 func (c *Client) Ping() error {
 	return c.selector.Each(c.ping)
+}
+
+// Close loops through all idle connections and closes them. Returns
+// error if any connection fails to close
+func (c *Client) Close() error {
+	c.lk.Lock()
+	defer c.lk.Unlock()
+
+	if c.freeconn == nil {
+		return nil
+	}
+
+	for _, cns := range c.freeconn {
+
+		if cns == nil {
+			continue
+		}
+
+		for _, cn := range cns {
+
+			if cn == nil || cn.nc == nil {
+				continue
+			}
+
+			err := cn.nc.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	c.freeconn = nil
+
+	return nil
 }
 
 // Increment atomically increments key by delta. The return value is
