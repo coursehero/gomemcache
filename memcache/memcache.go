@@ -682,11 +682,16 @@ func (c *Client) Ping() error {
 // error if any connection fails to close
 func (c *Client) Close() error {
 	c.lk.Lock()
-	defer c.lk.Unlock()
-
+	currentConnections := c.freeconn
 	c.closed = true
+	c.freeconn = nil
+	c.lk.Unlock()
 
-	if c.freeconn == nil {
+	return c.closeConnections(currentConnections)
+}
+
+func (c *Client) closeConnections(currentConn map[string][]*conn) error {
+	if currentConn == nil {
 		return nil
 	}
 
@@ -708,8 +713,6 @@ func (c *Client) Close() error {
 			}
 		}
 	}
-
-	c.freeconn = nil
 
 	return nil
 }
