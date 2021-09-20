@@ -150,6 +150,7 @@ type Client struct {
 
 	lk       sync.Mutex
 	freeconn map[string][]*conn
+	closed   bool
 }
 
 // Item is an item to be got or stored in a memcached server.
@@ -209,7 +210,7 @@ func (c *Client) putFreeConn(addr net.Addr, cn *conn) {
 		c.freeconn = make(map[string][]*conn)
 	}
 	freelist := c.freeconn[addr.String()]
-	if len(freelist) >= c.maxIdleConns() {
+	if c.closed || len(freelist) >= c.maxIdleConns() {
 		cn.nc.Close()
 		return
 	}
@@ -219,7 +220,7 @@ func (c *Client) putFreeConn(addr net.Addr, cn *conn) {
 func (c *Client) getFreeConn(addr net.Addr) (cn *conn, ok bool) {
 	c.lk.Lock()
 	defer c.lk.Unlock()
-	if c.freeconn == nil {
+	if c.closed || c.freeconn == nil {
 		return nil, false
 	}
 	freelist, ok := c.freeconn[addr.String()]
@@ -682,6 +683,8 @@ func (c *Client) Ping() error {
 func (c *Client) Close() error {
 	c.lk.Lock()
 	defer c.lk.Unlock()
+
+	c.closed = true
 
 	if c.freeconn == nil {
 		return nil
